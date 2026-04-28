@@ -8,6 +8,8 @@
   <link rel="preconnect" href="https://fonts.googleapis.com"/>
   <link href="https://fonts.googleapis.com/css2?family=Inter:ital,wght@0,300;0,400;0,500;0,600;0,700;0,800;1,400&family=Poppins:wght@700;800;900&display=swap" rel="stylesheet"/>
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css"/>
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 <style>
 /* ==============================
    VARIABLES & RESET
@@ -695,14 +697,10 @@ button{font-family:inherit;}
               </div>
               <div class="dapp-status">En vivo</div>
             </div>
-            <!-- Mini mapa -->
-            <div class="dmap" style="margin:0 14px 12px">
-              <div class="dmap-grid"></div>
-              <div class="dmap-street"></div>
-              <div class="dmap-street2"></div>
-              <div class="dmap-user"></div>
-              <div class="dmap-zone"><span>Zona<br/>segura</span></div>
-              <div class="dmap-label">📍 Calle Mayor, 12 · Madrid</div>
+            <!-- Mini mapa Leaflet -->
+            <div class="dmap" style="margin:0 14px 12px;position:relative;">
+              <div id="phoneMap" style="height:100%;border-radius:16px;"></div>
+              <div class="dmap-label" style="z-index:1000;">📍 <span id="phoneAddress">Calle Mayor, 12 · Madrid</span></div>
             </div>
             <!-- SOS -->
             <div class="dsos-zone">
@@ -743,14 +741,11 @@ button{font-family:inherit;}
         <!-- Mapa del panel -->
         <div class="dpanel-card">
           <p style="color:rgba(255,255,255,.5);font-size:.72rem;font-weight:600;letter-spacing:.06em;text-transform:uppercase;margin-bottom:12px">Localización GPS</p>
-          <div class="dpanel-map">
-            <div class="dpmap-grid"></div>
-            <div class="dpmap-route"></div>
-            <div class="dpmap-dot"></div>
-            <div class="dpmap-zone"><span>Zona<br/>Segura</span></div>
-            <div class="dpmap-bar">
-              <span>📍 Calle Mayor, 12 · Madrid</span>
-              <strong>● Activa</strong>
+          <div class="dpanel-map" style="position:relative;">
+            <div id="panelMap" style="height:100%;border-radius:10px;"></div>
+            <div class="dpmap-bar" style="z-index:1000;">
+              <span>📍 <span id="panelAddress">Calle Mayor, 12 · Madrid</span></span>
+              <strong id="panelStatus">● Activa</strong>
             </div>
           </div>
           <div class="dp-row" style="margin-top:12px">
@@ -1299,89 +1294,330 @@ button{font-family:inherit;}
 </footer>
 
 <script>
-// Navbar
-window.addEventListener('scroll',()=>{
-  document.getElementById('nav').classList.toggle('solid',window.scrollY>10);
+/* ============================================================
+   VIDASEGURA — JavaScript funcional completo
+   - Mapas Leaflet reales (OpenStreetMap)
+   - Geolocalización real del navegador
+   - GPS animado con ruta simulada
+   - Formulario con envío real (FormSubmit.co → email)
+   - Notificaciones nativas del navegador
+   - Reloj en vivo sincronizado
+   - Botón llamar con protocolo tel:
+============================================================ */
+
+// ── CONFIGURACIÓN ──────────────────────────────────────────
+const TELEFONO   = 'tel:+34600000000';        // ← Cambiar por el número real
+const EMAIL_DEST = 'victor.l.trenado2008@gmail.com';
+const DEMO_LAT   = 40.4155;
+const DEMO_LNG   = -3.7074;
+const ZONA_LAT   = 40.4162;
+const ZONA_LNG   = -3.7055;
+
+// Ruta simulada alrededor de Calle Mayor, Madrid
+const RUTA = [
+  [40.4155, -3.7074], [40.4160, -3.7062], [40.4167, -3.7048],
+  [40.4158, -3.7035], [40.4148, -3.7050], [40.4152, -3.7065]
+];
+let rutaIdx = 0;
+
+// ── NAVBAR ────────────────────────────────────────────────
+window.addEventListener('scroll', () => {
+  document.getElementById('nav').classList.toggle('solid', window.scrollY > 10);
 });
 
-// Menú móvil
-document.getElementById('ham').addEventListener('click',()=>{
+// ── MENÚ MÓVIL ────────────────────────────────────────────
+document.getElementById('ham').addEventListener('click', () => {
   document.getElementById('mobNav').classList.toggle('open');
 });
-document.querySelectorAll('.mob-nav a').forEach(a=>a.addEventListener('click',()=>document.getElementById('mobNav').classList.remove('open')));
+document.querySelectorAll('.mob-nav a').forEach(a =>
+  a.addEventListener('click', () => document.getElementById('mobNav').classList.remove('open'))
+);
 
-// Animaciones de entrada
-const obs=new IntersectionObserver(entries=>{
-  entries.forEach(e=>{if(e.isIntersecting)e.target.classList.add('in');});
-},{threshold:.12});
-document.querySelectorAll('.reveal,.reveal-l,.reveal-r').forEach(el=>obs.observe(el));
+// ── ANIMACIONES DE ENTRADA ────────────────────────────────
+const obs = new IntersectionObserver(entries => {
+  entries.forEach(e => { if (e.isIntersecting) e.target.classList.add('in'); });
+}, { threshold: 0.12 });
+document.querySelectorAll('.reveal,.reveal-l,.reveal-r').forEach(el => obs.observe(el));
 
-// FAQ
-function faq(el){
-  const item=el.closest('.faq-item');
-  const open=item.classList.contains('open');
-  document.querySelectorAll('.faq-item.open').forEach(i=>i.classList.remove('open'));
-  if(!open)item.classList.add('open');
+// ── RELOJ EN VIVO ─────────────────────────────────────────
+function actualizarReloj() {
+  const ahora = new Date();
+  const h = String(ahora.getHours()).padStart(2, '0');
+  const m = String(ahora.getMinutes()).padStart(2, '0');
+  const hora = `${h}:${m}`;
+  // Barras de estado del móvil
+  document.querySelectorAll('.dstatus span:first-child, .pstatus span:first-child').forEach(el => {
+    el.textContent = hora;
+  });
+  // Reloj grande (sección mayores)
+  const bigTime = document.querySelector('.big-time');
+  if (bigTime) {
+    const dias = ['Domingo','Lunes','Martes','Miércoles','Jueves','Viernes','Sábado'];
+    const meses = ['enero','febrero','marzo','abril','mayo','junio','julio','agosto','septiembre','octubre','noviembre','diciembre'];
+    const fecha = `${dias[ahora.getDay()]}, ${ahora.getDate()} ${meses[ahora.getMonth()]}`;
+    bigTime.innerHTML = `${hora}<small>${fecha}</small>`;
+  }
+}
+actualizarReloj();
+setInterval(actualizarReloj, 30000);
+
+// ── MAPAS LEAFLET ─────────────────────────────────────────
+// Icono de marcador GPS (sin imagen externa)
+function crearIcono(color, size) {
+  return L.divIcon({
+    className: '',
+    html: `<div style="width:${size}px;height:${size}px;background:${color};border:2.5px solid #fff;border-radius:50%;box-shadow:0 0 0 ${Math.round(size/2)}px ${color}33;"></div>`,
+    iconSize: [size, size],
+    iconAnchor: [size/2, size/2]
+  });
 }
 
-// ── SOS Hero (móvil pequeño del hero)
-function heroSOS(){
-  const btn=document.querySelector('.psos-btn');
-  btn.style.background='radial-gradient(circle,#ff0000,#cc0000)';
-  btn.style.transform='scale(.94)';
-  setTimeout(()=>{btn.style.background='';btn.style.transform='';},1800);
+// Mapa del móvil (demo interactiva)
+const phoneMap = L.map('phoneMap', {
+  zoomControl: false, dragging: false, scrollWheelZoom: false,
+  doubleClickZoom: false, boxZoom: false, keyboard: false,
+  attributionControl: false
+}).setView([DEMO_LAT, DEMO_LNG], 16);
+
+L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(phoneMap);
+
+const markerPhone = L.marker([DEMO_LAT, DEMO_LNG], { icon: crearIcono('#1A6EFF', 14) }).addTo(phoneMap);
+L.circle([ZONA_LAT, ZONA_LNG], {
+  radius: 80, color: '#34C759', fillColor: '#34C759',
+  fillOpacity: 0.1, weight: 2, dashArray: '6,4'
+}).addTo(phoneMap);
+
+// Mapa del panel familiar (oscuro)
+const panelMap = L.map('panelMap', {
+  zoomControl: true, dragging: true, scrollWheelZoom: false,
+  doubleClickZoom: false, attributionControl: false
+}).setView([DEMO_LAT, DEMO_LNG], 16);
+
+L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png').addTo(panelMap);
+
+const markerPanel = L.marker([DEMO_LAT, DEMO_LNG], { icon: crearIcono('#1A6EFF', 16) })
+  .bindPopup('<b>María García</b><br>Calle Mayor, 12<br><span style="color:#34C759">● GPS Activo</span>')
+  .addTo(panelMap);
+
+L.circle([ZONA_LAT, ZONA_LNG], {
+  radius: 80, color: '#34C759', fillColor: '#34C759',
+  fillOpacity: 0.12, weight: 2, dashArray: '6,4'
+}).bindPopup('<b>Zona Segura</b><br>Casa · Radio 80m').addTo(panelMap);
+
+// Historial de ruta (línea punteada)
+L.polyline(RUTA, { color: '#00B4D8', weight: 2, opacity: 0.5, dashArray: '6,4' }).addTo(panelMap);
+
+// Animación GPS: mover marcador por la ruta cada 4 segundos
+function animarGPS() {
+  rutaIdx = (rutaIdx + 1) % RUTA.length;
+  const pos = RUTA[rutaIdx];
+  markerPhone.setLatLng(pos);
+  markerPanel.setLatLng(pos);
+}
+setInterval(animarGPS, 4000);
+
+// Intentar geolocalización real del usuario (si concede permiso)
+if (navigator.geolocation) {
+  navigator.geolocation.getCurrentPosition(pos => {
+    const { latitude: lat, longitude: lng } = pos.coords;
+    markerPhone.setLatLng([lat, lng]);
+    markerPanel.setLatLng([lat, lng]);
+    phoneMap.setView([lat, lng], 16);
+    panelMap.setView([lat, lng], 16);
+    const addr = `Tu ubicación real · ${lat.toFixed(4)}, ${lng.toFixed(4)}`;
+    document.getElementById('phoneAddress').textContent = addr;
+    document.getElementById('panelAddress').textContent = addr;
+  }, () => { /* Sin permiso → usa Madrid como demo */ });
 }
 
-// ── SOS Demo principal
-function activarSOS(){
-  const btn=document.getElementById('demoSOS');
-  const flash=document.getElementById('sosFlash');
-  const box=document.getElementById('alertsBox');
+// ── FAQ ───────────────────────────────────────────────────
+function faq(el) {
+  const item = el.closest('.faq-item');
+  const abierto = item.classList.contains('open');
+  document.querySelectorAll('.faq-item.open').forEach(i => i.classList.remove('open'));
+  if (!abierto) item.classList.add('open');
+}
+
+// ── NOTIFICACIONES NATIVAS ────────────────────────────────
+function notificar(titulo, cuerpo) {
+  if (!('Notification' in window)) return;
+  const lanzar = () => new Notification(titulo, {
+    body: cuerpo,
+    icon: 'data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64"><circle cx="32" cy="32" r="32" fill="%23FF3B30"/><text x="16" y="44" font-size="32">🔔</text></svg>'
+  });
+  if (Notification.permission === 'granted') {
+    lanzar();
+  } else if (Notification.permission !== 'denied') {
+    Notification.requestPermission().then(p => { if (p === 'granted') lanzar(); });
+  }
+}
+
+// ── SOS — HERO (móvil pequeño) ────────────────────────────
+function heroSOS() {
+  const btn = document.querySelector('.psos-btn');
+  btn.style.background = 'radial-gradient(circle,#ff0000,#cc0000)';
+  btn.style.transform = 'scale(.94)';
+  setTimeout(() => { btn.style.background = ''; btn.style.transform = ''; }, 1800);
+  notificar('🚨 SOS VidaSegura', 'María García ha pulsado el botón de emergencia.\n📍 Calle Mayor, 12 · Madrid');
+}
+
+// ── SOS — DEMO INTERACTIVA ────────────────────────────────
+function activarSOS() {
+  const btn   = document.getElementById('demoSOS');
+  const flash = document.getElementById('sosFlash');
+  const box   = document.getElementById('alertsBox');
+
   btn.classList.add('firing');
-  btn.style.background='linear-gradient(145deg,#ff0000,#cc0000)';
-  setTimeout(()=>{
+  btn.style.background = 'linear-gradient(145deg,#ff0000,#cc0000)';
+
+  setTimeout(() => {
     flash.classList.add('show');
-    // Nueva alerta
-    const a=document.createElement('div');
-    a.className='al al-sos';
-    a.innerHTML=`<div class="al-ico al-ico-sos"><i class="fas fa-bell"></i></div>
-      <div class="al-txt"><span>🚨 SOS Activado</span><small>Calle Mayor, 12 · Ahora</small></div>
-      <span class="al-time">Ahora</span>`;
-    box.insertBefore(a,box.firstChild);
-    setTimeout(()=>{
+
+    // Hora actual en la alerta
+    const ahora = new Date();
+    const hora = `${String(ahora.getHours()).padStart(2,'0')}:${String(ahora.getMinutes()).padStart(2,'0')}`;
+
+    // Insertar nueva alerta en el historial
+    const item = document.createElement('div');
+    item.className = 'al al-sos';
+    item.innerHTML = `
+      <div class="al-ico al-ico-sos"><i class="fas fa-bell"></i></div>
+      <div class="al-txt"><span>🚨 SOS Activado</span><small>${document.getElementById('phoneAddress').textContent}</small></div>
+      <span class="al-time">${hora}</span>`;
+    box.insertBefore(item, box.firstChild);
+
+    // Notificación nativa del navegador
+    notificar('🚨 SOS VidaSegura', `María García necesita ayuda.\n📍 ${document.getElementById('phoneAddress').textContent}`);
+
+    // Zoom en el panel al punto actual
+    panelMap.flyTo(RUTA[rutaIdx], 17, { duration: 1.5 });
+
+    // Actualizar estado en el panel
+    document.getElementById('panelStatus').innerHTML = '<span style="color:#FF3B30">⚠ SOS Activo</span>';
+    setTimeout(() => {
+      document.getElementById('panelStatus').innerHTML = '● Activa';
+    }, 8000);
+
+    setTimeout(() => {
       btn.classList.remove('firing');
-      btn.style.background='';
-    },1500);
-  },700);
+      btn.style.background = '';
+    }, 1500);
+  }, 700);
 }
 
-// ── SOS móvil grande (sección mayores)
-function bigSOS(){
-  const btn=document.querySelector('.big-sos');
-  btn.style.background='#cc0000';
-  btn.style.transform='scale(.93)';
-  setTimeout(()=>{btn.style.background='';btn.style.transform='';},1500);
-  alert('📞 Simulación: se enviaría alerta SOS a Ana, Pedro y Lucía con la ubicación GPS.');
+// ── SOS — SECCIÓN MAYORES ─────────────────────────────────
+function bigSOS() {
+  const btn = document.querySelector('.big-sos');
+  btn.style.background = '#cc0000';
+  btn.style.transform = 'scale(.93)';
+  setTimeout(() => { btn.style.background = ''; btn.style.transform = ''; }, 1500);
+  notificar('🚨 SOS VidaSegura', 'El mayor ha pulsado el botón. Alertando a Ana, Pedro y Lucía...');
 }
 
-// Acciones demo panel
-function demoLlamar(){alert('📞 Demo: llamaría automáticamente al familiar de guardia.');}
-function demoRuta(){alert('🗺️ Demo: mostraría el historial completo de rutas del día.');}
-function demoZona(){alert('📍 Demo: abriría el editor de zonas seguras en el mapa.');}
-function demoSilenciar(){
+// ── ACCIONES DEL PANEL ────────────────────────────────────
+
+// Llamar: abre el marcador telefónico real
+function demoLlamar() {
+  window.location.href = TELEFONO;
+}
+
+// Ver ruta: anima el mapa mostrando todo el recorrido
+function demoRuta() {
+  const bounds = L.latLngBounds(RUTA);
+  panelMap.flyToBounds(bounds, { padding: [30, 30], duration: 1.5 });
+}
+
+// Editar zona: zoom a la zona segura
+function demoZona() {
+  panelMap.flyTo([ZONA_LAT, ZONA_LNG], 18, { duration: 1 });
+}
+
+// Silenciar alerta
+function demoSilenciar() {
   document.getElementById('sosFlash').classList.remove('show');
-  alert('🔕 Demo: alerta silenciada y registrada como atendida.');}
-function demoUbicacion(){alert('📍 Demo: localizaría al mayor en tiempo real en el mapa.');}
-function demoContactos(){alert('👨‍👩‍👧 Demo: mostraría la lista de familiares y su estado de conexión.');}
-function demoConfig(){alert('⚙️ Demo: abriría los ajustes de la app (zonas, notificaciones, idioma).');}
+}
 
-// Formulario
-function enviar(){
-  const n=document.getElementById('fNombre').value;
-  const e=document.getElementById('fEmail').value;
-  if(!n||!e){alert('Por favor completa nombre y email.');return;}
-  document.getElementById('formOK').classList.add('show');
-  setTimeout(()=>document.getElementById('formOK').classList.remove('show'),5000);
+// Botón Ubicación: geolocalización real o zoom al marcador
+function demoUbicacion() {
+  if (navigator.geolocation) {
+    navigator.geolocation.getCurrentPosition(
+      pos => {
+        const { latitude: lat, longitude: lng } = pos.coords;
+        markerPhone.setLatLng([lat, lng]);
+        markerPanel.setLatLng([lat, lng]);
+        phoneMap.flyTo([lat, lng], 17);
+        panelMap.flyTo([lat, lng], 17);
+        const addr = `Tu ubicación · ${lat.toFixed(4)}, ${lng.toFixed(4)}`;
+        document.getElementById('phoneAddress').textContent = addr;
+        document.getElementById('panelAddress').textContent = addr;
+      },
+      () => panelMap.flyTo([DEMO_LAT, DEMO_LNG], 17)
+    );
+  } else {
+    panelMap.flyTo([DEMO_LAT, DEMO_LNG], 17);
+  }
+}
+
+// Contactos: abrir popup del marcador
+function demoContactos() {
+  markerPanel.openPopup();
+}
+
+// Config: zoom a la zona segura con popup
+function demoConfig() {
+  panelMap.flyTo([ZONA_LAT, ZONA_LNG], 18, { duration: 1 });
+}
+
+// ── FORMULARIO → ENVÍO REAL ───────────────────────────────
+async function enviar() {
+  const nombre = document.getElementById('fNombre').value.trim();
+  const email  = document.getElementById('fEmail').value.trim();
+  const tel    = document.getElementById('fTel').value.trim();
+  const plan   = document.getElementById('fPlan').value;
+  const msg    = document.getElementById('fMsg').value.trim();
+
+  // Validación visual
+  document.getElementById('fNombre').style.borderColor = nombre ? '' : '#FF3B30';
+  document.getElementById('fEmail').style.borderColor  = email  ? '' : '#FF3B30';
+  if (!nombre || !email) return;
+
+  const btnEnviar = document.querySelector('#contacto .btn-primary');
+  btnEnviar.disabled = true;
+  btnEnviar.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Enviando...';
+
+  try {
+    // FormSubmit.co: servicio gratuito, envía al email sin backend
+    const res = await fetch(`https://formsubmit.co/ajax/${EMAIL_DEST}`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
+      body: JSON.stringify({
+        Nombre: nombre,
+        Email: email,
+        Teléfono: tel || 'No indicado',
+        Plan: plan,
+        Mensaje: msg || 'Sin mensaje',
+        _subject: `Nueva solicitud VidaSegura — ${plan}`,
+        _template: 'table',
+        _captcha: 'false'
+      })
+    });
+    const data = await res.json();
+    if (data.success === 'true' || data.success === true) {
+      document.getElementById('formOK').classList.add('show');
+      ['fNombre','fEmail','fTel','fMsg'].forEach(id => document.getElementById(id).value = '');
+      setTimeout(() => document.getElementById('formOK').classList.remove('show'), 7000);
+    } else {
+      throw new Error('FormSubmit error');
+    }
+  } catch {
+    // Fallback: abrir cliente de correo del usuario
+    const asunto = encodeURIComponent(`Solicitud VidaSegura — ${plan}`);
+    const cuerpo = encodeURIComponent(`Nombre: ${nombre}\nEmail: ${email}\nTeléfono: ${tel}\nPlan: ${plan}\nMensaje: ${msg}`);
+    window.location.href = `mailto:${EMAIL_DEST}?subject=${asunto}&body=${cuerpo}`;
+  } finally {
+    btnEnviar.disabled = false;
+    btnEnviar.innerHTML = '<i class="fas fa-paper-plane"></i> Enviar solicitud';
+  }
 }
 </script>
 </body>
