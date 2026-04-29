@@ -1,0 +1,1758 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>VidaSegura — Prototipo Funcional</title>
+  <link href="https://api.fontshare.com/v2/css?f[]=satoshi@300,400,500,700&f[]=cabinet-grotesk@400,500,700,800&display=swap" rel="stylesheet">
+  <style>
+    /* ===== TOKENS ===== */
+    :root {
+      --green:     #1a7a5e;
+      --green-l:   #3db389;
+      --green-bg:  #e6f4ef;
+      --orange:    #e8773a;
+      --red:       #e53935;
+      --red-bg:    #fdecea;
+      --text:      #1f1d18;
+      --muted:     #6e6c66;
+      --faint:     #b0afa9;
+      --bg:        #f4f2ee;
+      --surface:   #ffffff;
+      --border:    #e0ddd7;
+      --radius-sm: 8px;
+      --radius-md: 12px;
+      --radius-lg: 20px;
+      --radius-xl: 28px;
+      --font-d:    'Cabinet Grotesk', sans-serif;
+      --font-b:    'Satoshi', sans-serif;
+      --trans:     200ms cubic-bezier(0.16,1,0.3,1);
+    }
+
+    /* ===== PAGE CHROME ===== */
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: var(--font-b);
+      background: #1a1c17;
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      padding: 32px 16px 48px;
+    }
+
+    /* Top bar */
+    .top-bar {
+      width: 100%;
+      max-width: 900px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 24px;
+    }
+    .top-bar-logo {
+      font-family: var(--font-d);
+      font-size: 20px;
+      font-weight: 800;
+      color: #fff;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .top-bar-logo svg { color: var(--green-l); }
+    .proto-badge {
+      background: oklch(0.65 0.14 160 / 0.2);
+      border: 1px solid oklch(0.65 0.14 160 / 0.4);
+      color: var(--green-l);
+      font-size: 11px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: .1em;
+      padding: 4px 10px;
+      border-radius: 99px;
+    }
+
+    /* ===== FLOW STEPS ===== */
+    .flow-nav {
+      width: 100%;
+      max-width: 900px;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      margin-bottom: 32px;
+      overflow-x: auto;
+      padding-bottom: 4px;
+      scrollbar-width: none;
+    }
+    .flow-nav::-webkit-scrollbar { display: none; }
+    .flow-step {
+      flex-shrink: 0;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      background: rgba(255,255,255,0.07);
+      border: 1px solid rgba(255,255,255,0.1);
+      border-radius: 99px;
+      padding: 6px 14px;
+      font-size: 12px;
+      color: rgba(255,255,255,0.5);
+      font-weight: 500;
+      cursor: pointer;
+      transition: var(--trans);
+      white-space: nowrap;
+    }
+    .flow-step:hover { background: rgba(255,255,255,0.12); color: rgba(255,255,255,0.9); }
+    .flow-step.active {
+      background: var(--green);
+      border-color: var(--green);
+      color: #fff;
+    }
+    .flow-step-num {
+      width: 18px; height: 18px;
+      border-radius: 50%;
+      background: rgba(255,255,255,0.15);
+      display: flex; align-items: center; justify-content: center;
+      font-size: 10px;
+      font-weight: 700;
+    }
+    .flow-step.active .flow-step-num { background: rgba(255,255,255,0.3); }
+
+    /* ===== PHONE FRAME ===== */
+    .phone-wrap {
+      position: relative;
+      width: 375px;
+      max-width: 100%;
+    }
+    .phone-frame {
+      background: #1c1c1e;
+      border-radius: 48px;
+      padding: 12px;
+      box-shadow:
+        0 0 0 1px rgba(255,255,255,0.1),
+        0 40px 80px rgba(0,0,0,0.7);
+    }
+    .phone-notch-bar {
+      height: 44px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      position: relative;
+    }
+    .phone-notch {
+      width: 120px; height: 34px;
+      background: #1c1c1e;
+      border-radius: 0 0 20px 20px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 6px;
+    }
+    .notch-camera { width: 12px; height: 12px; border-radius: 50%; background: #2c2c2e; }
+    .notch-speaker { width: 60px; height: 6px; background: #2c2c2e; border-radius: 3px; }
+    .phone-time {
+      position: absolute;
+      left: 20px;
+      font-size: 15px;
+      font-weight: 600;
+      color: var(--text);
+    }
+    .phone-status {
+      position: absolute;
+      right: 20px;
+      display: flex;
+      align-items: center;
+      gap: 5px;
+      color: var(--text);
+    }
+    .phone-screen {
+      background: var(--bg);
+      border-radius: 40px;
+      overflow: hidden;
+      height: 720px;
+      position: relative;
+    }
+
+    /* ===== NAV ARROWS ===== */
+    .nav-arrows {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 16px;
+      margin-top: 24px;
+    }
+    .nav-btn {
+      width: 48px; height: 48px;
+      border-radius: 50%;
+      background: rgba(255,255,255,0.1);
+      border: 1px solid rgba(255,255,255,0.15);
+      color: #fff;
+      display: flex; align-items: center; justify-content: center;
+      cursor: pointer;
+      transition: var(--trans);
+      font-size: 20px;
+    }
+    .nav-btn:hover { background: rgba(255,255,255,0.2); }
+    .nav-btn:disabled { opacity: 0.3; cursor: not-allowed; }
+    .nav-label {
+      font-size: 13px;
+      color: rgba(255,255,255,0.5);
+      min-width: 120px;
+      text-align: center;
+    }
+
+    /* ===== SCREENS ===== */
+    .screen {
+      position: absolute;
+      inset: 0;
+      display: none;
+      flex-direction: column;
+      overflow: hidden;
+    }
+    .screen.active {
+      display: flex;
+      animation: slide-in 0.3s cubic-bezier(0.16,1,0.3,1) both;
+    }
+    .screen.slide-back {
+      animation: slide-back 0.3s cubic-bezier(0.16,1,0.3,1) both;
+    }
+    @keyframes slide-in {
+      from { transform: translateX(100%); opacity: 0.5; }
+      to   { transform: translateX(0);   opacity: 1; }
+    }
+    @keyframes slide-back {
+      from { transform: translateX(-100%); opacity: 0.5; }
+      to   { transform: translateX(0);    opacity: 1; }
+    }
+
+    /* ── Status bar shared ── */
+    .status-bar {
+      padding: 12px 20px 0;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      font-size: 13px;
+      font-weight: 600;
+      color: var(--text);
+      flex-shrink: 0;
+    }
+    .status-icons { display: flex; gap: 5px; align-items: center; }
+
+    /* ── Top app bar ── */
+    .app-bar {
+      padding: 8px 20px 10px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      flex-shrink: 0;
+    }
+    .app-bar-title {
+      font-family: var(--font-d);
+      font-size: 18px;
+      font-weight: 700;
+      color: var(--text);
+    }
+    .icon-btn {
+      width: 36px; height: 36px;
+      border-radius: 50%;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      display: flex; align-items: center; justify-content: center;
+      cursor: pointer;
+      color: var(--muted);
+    }
+
+    /* ── Bottom nav ── */
+    .bottom-nav {
+      margin-top: auto;
+      background: var(--surface);
+      border-top: 1px solid var(--border);
+      display: flex;
+      padding: 8px 0 20px;
+      flex-shrink: 0;
+    }
+    .bnav-item {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 3px;
+      font-size: 10px;
+      color: var(--faint);
+      cursor: pointer;
+      transition: var(--trans);
+    }
+    .bnav-item.active { color: var(--green); }
+    .bnav-item svg { width: 22px; height: 22px; }
+
+    /* ============================================================
+       SCREEN 1 — SPLASH
+    ============================================================ */
+    #s-splash {
+      background: linear-gradient(160deg, #0d2e22 0%, #1a4a35 60%, #0f3828 100%);
+      align-items: center;
+      justify-content: center;
+      gap: 20px;
+    }
+    .splash-logo {
+      width: 80px; height: 80px;
+      background: rgba(255,255,255,0.1);
+      border: 2px solid rgba(255,255,255,0.25);
+      border-radius: 24px;
+      display: flex; align-items: center; justify-content: center;
+    }
+    .splash-title {
+      font-family: var(--font-d);
+      font-size: 34px;
+      font-weight: 800;
+      color: #fff;
+      letter-spacing: -.5px;
+    }
+    .splash-sub {
+      font-size: 14px;
+      color: rgba(255,255,255,0.6);
+      text-align: center;
+    }
+    .splash-loader {
+      width: 40px; height: 4px;
+      background: rgba(255,255,255,0.15);
+      border-radius: 2px;
+      overflow: hidden;
+      margin-top: 32px;
+    }
+    .splash-loader-bar {
+      height: 100%;
+      background: var(--green-l);
+      border-radius: 2px;
+      animation: loading 1.8s ease-in-out infinite;
+    }
+    @keyframes loading {
+      0%   { width: 0%; margin-left: 0; }
+      50%  { width: 80%; margin-left: 0; }
+      100% { width: 0%; margin-left: 100%; }
+    }
+
+    /* ============================================================
+       SCREEN 2 — LOGIN
+    ============================================================ */
+    #s-login {
+      background: var(--bg);
+    }
+    .login-hero {
+      background: linear-gradient(160deg, #0d2e22, #1a4a35);
+      padding: 40px 24px 32px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 10px;
+    }
+    .login-hero-logo {
+      width: 56px; height: 56px;
+      background: rgba(255,255,255,0.15);
+      border-radius: 16px;
+      display: flex; align-items: center; justify-content: center;
+    }
+    .login-hero-title {
+      font-family: var(--font-d);
+      font-size: 26px;
+      font-weight: 800;
+      color: #fff;
+    }
+    .login-hero-sub { font-size: 13px; color: rgba(255,255,255,0.6); }
+    .login-body {
+      padding: 28px 24px;
+      display: flex;
+      flex-direction: column;
+      gap: 16px;
+      flex: 1;
+    }
+    .form-label {
+      font-size: 12px;
+      font-weight: 600;
+      color: var(--muted);
+      text-transform: uppercase;
+      letter-spacing: .05em;
+      margin-bottom: 6px;
+    }
+    .form-input {
+      width: 100%;
+      background: var(--surface);
+      border: 1.5px solid var(--border);
+      border-radius: var(--radius-md);
+      padding: 13px 14px;
+      font-family: var(--font-b);
+      font-size: 15px;
+      color: var(--text);
+      outline: none;
+      transition: border-color var(--trans);
+    }
+    .form-input:focus { border-color: var(--green); }
+    .form-input::placeholder { color: var(--faint); }
+    .btn-green {
+      width: 100%;
+      background: var(--green);
+      color: #fff;
+      border: none;
+      border-radius: var(--radius-lg);
+      padding: 15px;
+      font-family: var(--font-d);
+      font-size: 16px;
+      font-weight: 700;
+      cursor: pointer;
+      transition: background var(--trans), transform var(--trans);
+      box-shadow: 0 4px 20px rgba(26,122,94,0.35);
+    }
+    .btn-green:hover { background: #0f5e45; transform: translateY(-1px); }
+    .btn-green:active { transform: translateY(0); }
+    .form-link {
+      text-align: center;
+      font-size: 13px;
+      color: var(--muted);
+    }
+    .form-link span { color: var(--green); font-weight: 600; cursor: pointer; }
+
+    /* ============================================================
+       SCREEN 3 — DASHBOARD
+    ============================================================ */
+    #s-dash {
+      background: var(--bg);
+    }
+    .dash-scroll {
+      flex: 1;
+      overflow-y: auto;
+      padding: 0 0 8px;
+      scrollbar-width: none;
+    }
+    .dash-scroll::-webkit-scrollbar { display: none; }
+    .dash-greeting {
+      padding: 0 20px 12px;
+    }
+    .dash-greeting-sub { font-size: 12px; color: var(--muted); text-transform: uppercase; letter-spacing: .08em; }
+    .dash-greeting-name {
+      font-family: var(--font-d);
+      font-size: 22px;
+      font-weight: 800;
+      color: var(--text);
+    }
+
+    /* SOS BUTTON */
+    .sos-area {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      padding: 16px 20px 24px;
+    }
+    .sos-ring {
+      width: 180px; height: 180px;
+      border-radius: 50%;
+      background: var(--red-bg);
+      border: 3px solid rgba(229,57,53,0.2);
+      display: flex; align-items: center; justify-content: center;
+      position: relative;
+      cursor: pointer;
+      transition: transform var(--trans), box-shadow var(--trans);
+    }
+    .sos-ring:hover {
+      transform: scale(1.04);
+      box-shadow: 0 0 40px rgba(229,57,53,0.25);
+    }
+    .sos-ring::before {
+      content: '';
+      position: absolute;
+      inset: -12px;
+      border-radius: 50%;
+      border: 2px solid rgba(229,57,53,0.12);
+      animation: sos-pulse 2s ease-in-out infinite;
+    }
+    @keyframes sos-pulse {
+      0%, 100% { transform: scale(1); opacity: 1; }
+      50%       { transform: scale(1.08); opacity: 0.4; }
+    }
+    .sos-btn-inner {
+      width: 140px; height: 140px;
+      border-radius: 50%;
+      background: var(--red);
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 4px;
+      box-shadow: 0 8px 28px rgba(229,57,53,0.45);
+    }
+    .sos-btn-label {
+      font-family: var(--font-d);
+      font-size: 36px;
+      font-weight: 800;
+      color: #fff;
+      line-height: 1;
+    }
+    .sos-btn-sub { font-size: 11px; color: rgba(255,255,255,0.8); font-weight: 500; }
+    .sos-hint { font-size: 12px; color: var(--faint); margin-top: 10px; text-align: center; }
+
+    /* Status cards row */
+    .cards-row {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 10px;
+      padding: 0 20px;
+      margin-bottom: 16px;
+    }
+    .status-card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-md);
+      padding: 14px;
+    }
+    .sc-label { font-size: 10px; color: var(--faint); text-transform: uppercase; letter-spacing: .06em; }
+    .sc-value {
+      font-family: var(--font-d);
+      font-size: 18px;
+      font-weight: 700;
+      color: var(--text);
+      margin-top: 2px;
+    }
+    .sc-value.green { color: var(--green); }
+    .sc-value.orange { color: var(--orange); }
+    .sc-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+      font-size: 10px;
+      font-weight: 600;
+      color: var(--green);
+      background: var(--green-bg);
+      padding: 2px 7px;
+      border-radius: 99px;
+      margin-top: 4px;
+    }
+    .sc-dot { width: 6px; height: 6px; border-radius: 50%; background: currentColor; animation: pulse-dot 1.4s ease-in-out infinite; }
+    @keyframes pulse-dot { 0%,100%{opacity:1;transform:scale(1)} 50%{opacity:.5;transform:scale(1.4)} }
+
+    /* Quick actions */
+    .section-head { padding: 0 20px 10px; font-family: var(--font-d); font-size: 15px; font-weight: 700; color: var(--text); }
+    .quick-actions {
+      display: grid;
+      grid-template-columns: 1fr 1fr 1fr;
+      gap: 10px;
+      padding: 0 20px 16px;
+    }
+    .qa-item {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-md);
+      padding: 14px 10px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 8px;
+      cursor: pointer;
+      transition: box-shadow var(--trans), transform var(--trans);
+    }
+    .qa-item:hover { box-shadow: 0 4px 12px rgba(0,0,0,.08); transform: translateY(-1px); }
+    .qa-icon {
+      width: 40px; height: 40px;
+      border-radius: 12px;
+      display: flex; align-items: center; justify-content: center;
+    }
+    .qa-icon.green { background: var(--green-bg); color: var(--green); }
+    .qa-icon.orange { background: #fdeee4; color: var(--orange); }
+    .qa-icon.blue { background: #e8f0fe; color: #1a73e8; }
+    .qa-label { font-size: 10px; font-weight: 600; color: var(--muted); text-align: center; }
+
+    /* Alert item */
+    .alerts-list { padding: 0 20px; display: flex; flex-direction: column; gap: 8px; }
+    .alert-item {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-md);
+      padding: 12px 14px;
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+    .alert-dot { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; }
+    .alert-dot.green { background: var(--green); }
+    .alert-dot.orange { background: var(--orange); }
+    .alert-text { flex: 1; }
+    .alert-title { font-size: 13px; font-weight: 600; color: var(--text); }
+    .alert-time { font-size: 11px; color: var(--faint); margin-top: 1px; }
+
+    /* ============================================================
+       SCREEN 4 — SOS CONFIRMACIÓN
+    ============================================================ */
+    #s-sos {
+      background: #1a0a0a;
+      align-items: center;
+      justify-content: center;
+      gap: 0;
+      padding: 0 24px;
+    }
+    .sos-alert-ring {
+      width: 200px; height: 200px;
+      border-radius: 50%;
+      background: rgba(229,57,53,0.1);
+      border: 3px solid rgba(229,57,53,0.3);
+      display: flex; align-items: center; justify-content: center;
+      position: relative;
+      margin-bottom: 28px;
+      animation: ring-pulse 1.5s ease-in-out infinite;
+    }
+    @keyframes ring-pulse {
+      0%,100% { box-shadow: 0 0 0 0 rgba(229,57,53,0.3); }
+      50%      { box-shadow: 0 0 0 24px rgba(229,57,53,0); }
+    }
+    .sos-alert-inner {
+      width: 150px; height: 150px;
+      border-radius: 50%;
+      background: var(--red);
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 4px;
+    }
+    .sos-alert-label {
+      font-family: var(--font-d);
+      font-size: 42px;
+      font-weight: 800;
+      color: #fff;
+      line-height: 1;
+    }
+    .sos-alert-title {
+      font-family: var(--font-d);
+      font-size: 26px;
+      font-weight: 800;
+      color: #fff;
+      text-align: center;
+      margin-bottom: 8px;
+    }
+    .sos-alert-sub { font-size: 14px; color: rgba(255,255,255,0.6); text-align: center; margin-bottom: 32px; }
+    .sos-contacts {
+      width: 100%;
+      background: rgba(255,255,255,0.07);
+      border: 1px solid rgba(255,255,255,0.12);
+      border-radius: var(--radius-md);
+      overflow: hidden;
+      margin-bottom: 24px;
+    }
+    .sos-contact-item {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      padding: 12px 16px;
+      border-bottom: 1px solid rgba(255,255,255,0.06);
+    }
+    .sos-contact-item:last-child { border-bottom: none; }
+    .sos-avatar {
+      width: 36px; height: 36px;
+      border-radius: 50%;
+      background: rgba(255,255,255,0.15);
+      display: flex; align-items: center; justify-content: center;
+      font-size: 14px;
+      font-weight: 700;
+      color: #fff;
+    }
+    .sos-contact-name { font-size: 14px; font-weight: 600; color: #fff; }
+    .sos-contact-rel { font-size: 11px; color: rgba(255,255,255,0.45); }
+    .sos-contact-status {
+      margin-left: auto;
+      font-size: 11px;
+      font-weight: 600;
+      color: #4caf50;
+      display: flex; align-items: center; gap: 4px;
+    }
+    .btn-cancel {
+      width: 100%;
+      background: rgba(255,255,255,0.1);
+      color: rgba(255,255,255,0.7);
+      border: 1px solid rgba(255,255,255,0.15);
+      border-radius: var(--radius-lg);
+      padding: 14px;
+      font-family: var(--font-d);
+      font-size: 15px;
+      font-weight: 700;
+      cursor: pointer;
+      transition: background var(--trans);
+    }
+    .btn-cancel:hover { background: rgba(255,255,255,0.18); }
+
+    /* ============================================================
+       SCREEN 5 — ALERTA ENVIADA
+    ============================================================ */
+    #s-sent {
+      background: var(--bg);
+      align-items: center;
+      justify-content: center;
+      padding: 32px 24px;
+      gap: 16px;
+    }
+    .sent-check {
+      width: 100px; height: 100px;
+      border-radius: 50%;
+      background: var(--green-bg);
+      border: 3px solid var(--green-l);
+      display: flex; align-items: center; justify-content: center;
+      animation: pop-in 0.4s cubic-bezier(0.16,1,0.3,1) both;
+    }
+    @keyframes pop-in { from{transform:scale(0.5);opacity:0} to{transform:scale(1);opacity:1} }
+    .sent-title {
+      font-family: var(--font-d);
+      font-size: 26px;
+      font-weight: 800;
+      color: var(--text);
+      text-align: center;
+    }
+    .sent-sub { font-size: 14px; color: var(--muted); text-align: center; line-height: 1.6; }
+    .sent-card {
+      width: 100%;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-md);
+      overflow: hidden;
+    }
+    .sent-card-row {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      padding: 13px 16px;
+      border-bottom: 1px solid var(--border);
+      font-size: 13px;
+    }
+    .sent-card-row:last-child { border-bottom: none; }
+    .sent-card-icon { width: 32px; height: 32px; border-radius: 8px; display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
+    .sent-card-icon.green { background: var(--green-bg); color: var(--green); }
+    .sent-card-icon.orange { background: #fdeee4; color: var(--orange); }
+    .sent-card-label { color: var(--muted); }
+    .sent-card-val { font-weight: 600; color: var(--text); margin-left: auto; }
+    .btn-green-outline {
+      width: 100%;
+      background: transparent;
+      border: 1.5px solid var(--green);
+      color: var(--green);
+      border-radius: var(--radius-lg);
+      padding: 14px;
+      font-family: var(--font-d);
+      font-size: 15px;
+      font-weight: 700;
+      cursor: pointer;
+      transition: background var(--trans), color var(--trans);
+    }
+    .btn-green-outline:hover { background: var(--green); color: #fff; }
+
+    /* ============================================================
+       SCREEN 6 — GPS / MAPA
+    ============================================================ */
+    #s-gps {
+      background: var(--bg);
+    }
+    .map-area {
+      flex: 1;
+      background: #dde8d4;
+      position: relative;
+      overflow: hidden;
+    }
+    .map-grid {
+      position: absolute;
+      inset: 0;
+      background-image:
+        linear-gradient(rgba(0,0,0,0.05) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(0,0,0,0.05) 1px, transparent 1px);
+      background-size: 32px 32px;
+    }
+    .map-road-h {
+      position: absolute;
+      background: rgba(255,255,255,0.8);
+      left: 0; right: 0;
+      height: 14px;
+    }
+    .map-road-v {
+      position: absolute;
+      background: rgba(255,255,255,0.8);
+      top: 0; bottom: 0;
+      width: 14px;
+    }
+    .map-block {
+      position: absolute;
+      background: rgba(200,210,190,0.8);
+      border-radius: 4px;
+    }
+    .map-pin {
+      position: absolute;
+      transform: translate(-50%, -100%);
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+    }
+    .map-pin-circle {
+      width: 44px; height: 44px;
+      border-radius: 50%;
+      background: var(--green);
+      border: 3px solid #fff;
+      display: flex; align-items: center; justify-content: center;
+      box-shadow: 0 4px 12px rgba(26,122,94,0.5);
+    }
+    .map-pin-tail {
+      width: 3px; height: 12px;
+      background: var(--green);
+    }
+    .map-accuracy {
+      position: absolute;
+      transform: translate(-50%, -50%);
+      width: 80px; height: 80px;
+      border-radius: 50%;
+      background: rgba(26,122,94,0.12);
+      border: 1px solid rgba(26,122,94,0.3);
+    }
+    .map-zone {
+      position: absolute;
+      border-radius: 50%;
+      background: rgba(26,122,94,0.08);
+      border: 2px dashed rgba(26,122,94,0.4);
+    }
+    .gps-bottom-card {
+      background: var(--surface);
+      border-radius: var(--radius-xl) var(--radius-xl) 0 0;
+      padding: 20px 20px 8px;
+      box-shadow: 0 -4px 24px rgba(0,0,0,0.1);
+      flex-shrink: 0;
+    }
+    .gps-handle {
+      width: 40px; height: 4px;
+      background: var(--border);
+      border-radius: 2px;
+      margin: 0 auto 16px;
+    }
+    .gps-address {
+      font-family: var(--font-d);
+      font-size: 17px;
+      font-weight: 700;
+      color: var(--text);
+      margin-bottom: 4px;
+    }
+    .gps-coords { font-size: 12px; color: var(--faint); margin-bottom: 14px; }
+    .gps-stats {
+      display: grid;
+      grid-template-columns: 1fr 1fr 1fr;
+      gap: 8px;
+    }
+    .gps-stat {
+      background: var(--bg);
+      border-radius: var(--radius-sm);
+      padding: 10px;
+      text-align: center;
+    }
+    .gps-stat-val { font-family: var(--font-d); font-size: 16px; font-weight: 700; color: var(--text); }
+    .gps-stat-lbl { font-size: 10px; color: var(--faint); text-transform: uppercase; letter-spacing: .05em; }
+    .zona-badge {
+      display: inline-flex; align-items: center; gap: 5px;
+      background: var(--green-bg); color: var(--green);
+      font-size: 11px; font-weight: 700;
+      padding: 4px 10px; border-radius: 99px;
+      margin-top: 10px;
+    }
+
+    /* ============================================================
+       SCREEN 7 — CONTACTOS
+    ============================================================ */
+    #s-contacts {
+      background: var(--bg);
+    }
+    .contacts-list {
+      flex: 1;
+      overflow-y: auto;
+      padding: 0 20px 16px;
+      scrollbar-width: none;
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+    .contacts-list::-webkit-scrollbar { display: none; }
+    .contact-card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-md);
+      padding: 14px 16px;
+      display: flex;
+      align-items: center;
+      gap: 14px;
+    }
+    .contact-avatar {
+      width: 46px; height: 46px;
+      border-radius: 50%;
+      display: flex; align-items: center; justify-content: center;
+      font-family: var(--font-d);
+      font-size: 18px;
+      font-weight: 700;
+      color: #fff;
+      flex-shrink: 0;
+    }
+    .contact-name { font-size: 15px; font-weight: 700; color: var(--text); }
+    .contact-rel { font-size: 12px; color: var(--muted); margin-top: 2px; }
+    .contact-phone { font-size: 12px; color: var(--faint); margin-top: 1px; }
+    .contact-actions { margin-left: auto; display: flex; gap: 8px; }
+    .contact-action-btn {
+      width: 34px; height: 34px;
+      border-radius: 50%;
+      border: 1px solid var(--border);
+      background: var(--bg);
+      display: flex; align-items: center; justify-content: center;
+      color: var(--muted);
+      cursor: pointer;
+      transition: var(--trans);
+    }
+    .contact-action-btn.green { background: var(--green-bg); color: var(--green); border-color: rgba(26,122,94,0.2); }
+    .contact-priority-badge {
+      display: inline-flex; align-items: center; gap: 4px;
+      font-size: 9px; font-weight: 700; text-transform: uppercase; letter-spacing: .06em;
+      padding: 2px 7px; border-radius: 99px; margin-top: 4px;
+    }
+    .contact-priority-badge.p1 { background: var(--red-bg); color: var(--red); }
+    .contact-priority-badge.p2 { background: #fff3e0; color: #e65100; }
+    .contact-priority-badge.p3 { background: var(--green-bg); color: var(--green); }
+    .add-contact-btn {
+      background: transparent;
+      border: 1.5px dashed var(--border);
+      border-radius: var(--radius-md);
+      padding: 14px;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      color: var(--muted);
+      font-size: 14px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: border-color var(--trans), color var(--trans);
+    }
+    .add-contact-btn:hover { border-color: var(--green); color: var(--green); }
+
+    /* ============================================================
+       SCREEN 8 — CONFIGURACIÓN
+    ============================================================ */
+    #s-settings {
+      background: var(--bg);
+    }
+    .settings-scroll {
+      flex: 1;
+      overflow-y: auto;
+      padding: 0 20px 16px;
+      scrollbar-width: none;
+      display: flex;
+      flex-direction: column;
+      gap: 16px;
+    }
+    .settings-scroll::-webkit-scrollbar { display: none; }
+    .settings-profile {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-md);
+      padding: 16px;
+      display: flex;
+      align-items: center;
+      gap: 14px;
+    }
+    .profile-avatar {
+      width: 52px; height: 52px;
+      border-radius: 50%;
+      background: var(--green);
+      display: flex; align-items: center; justify-content: center;
+      font-family: var(--font-d);
+      font-size: 20px;
+      font-weight: 700;
+      color: #fff;
+    }
+    .profile-name { font-family: var(--font-d); font-size: 17px; font-weight: 700; color: var(--text); }
+    .profile-email { font-size: 12px; color: var(--faint); margin-top: 2px; }
+    .settings-group { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius-md); overflow: hidden; }
+    .settings-group-label {
+      font-size: 11px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: .08em;
+      color: var(--faint);
+      padding: 12px 16px 6px;
+    }
+    .settings-item {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      padding: 13px 16px;
+      border-top: 1px solid var(--border);
+      cursor: pointer;
+    }
+    .settings-item:first-of-type { border-top: none; }
+    .si-icon {
+      width: 32px; height: 32px;
+      border-radius: 8px;
+      display: flex; align-items: center; justify-content: center;
+      flex-shrink: 0;
+    }
+    .si-icon.green { background: var(--green-bg); color: var(--green); }
+    .si-icon.blue { background: #e8f0fe; color: #1a73e8; }
+    .si-icon.orange { background: #fdeee4; color: var(--orange); }
+    .si-icon.red { background: var(--red-bg); color: var(--red); }
+    .si-label { font-size: 14px; font-weight: 600; color: var(--text); }
+    .si-sub { font-size: 11px; color: var(--faint); }
+    .si-right { margin-left: auto; display: flex; align-items: center; gap: 8px; color: var(--faint); }
+    .toggle {
+      width: 40px; height: 22px;
+      border-radius: 11px;
+      background: var(--border);
+      position: relative;
+      transition: background var(--trans);
+    }
+    .toggle.on { background: var(--green); }
+    .toggle::after {
+      content: '';
+      position: absolute;
+      top: 3px; left: 3px;
+      width: 16px; height: 16px;
+      border-radius: 50%;
+      background: #fff;
+      transition: transform var(--trans);
+      box-shadow: 0 1px 3px rgba(0,0,0,.2);
+    }
+    .toggle.on::after { transform: translateX(18px); }
+
+    /* ============================================================
+       SCREEN 9 — ZONAS SEGURAS
+    ============================================================ */
+    #s-zones {
+      background: var(--bg);
+    }
+    .zones-map {
+      flex: 1;
+      background: #dde8d4;
+      position: relative;
+      overflow: hidden;
+    }
+    .zone-circle {
+      position: absolute;
+      border-radius: 50%;
+      border: 2px dashed;
+      display: flex; align-items: center; justify-content: center;
+    }
+    .zone-label-pill {
+      background: rgba(255,255,255,0.9);
+      border-radius: 99px;
+      padding: 3px 10px;
+      font-size: 10px;
+      font-weight: 700;
+      white-space: nowrap;
+    }
+    .zones-bottom {
+      background: var(--surface);
+      border-radius: var(--radius-xl) var(--radius-xl) 0 0;
+      padding: 16px 20px 8px;
+      box-shadow: 0 -4px 24px rgba(0,0,0,0.1);
+      flex-shrink: 0;
+    }
+    .zone-card {
+      background: var(--bg);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-md);
+      padding: 12px 14px;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      margin-bottom: 8px;
+    }
+    .zone-dot { width: 10px; height: 10px; border-radius: 50%; flex-shrink: 0; }
+    .zone-name { font-size: 13px; font-weight: 600; color: var(--text); }
+    .zone-radius { font-size: 11px; color: var(--faint); }
+    .zone-status { margin-left: auto; font-size: 11px; font-weight: 600; }
+
+    /* ============================================================
+       UTILITY
+    ============================================================ */
+    .clickable { cursor: pointer; }
+    .pb-safe { padding-bottom: env(safe-area-inset-bottom, 20px); }
+
+    /* Legend below phone */
+    .legend {
+      width: 100%;
+      max-width: 375px;
+      margin-top: 20px;
+      background: rgba(255,255,255,0.06);
+      border: 1px solid rgba(255,255,255,0.1);
+      border-radius: 12px;
+      padding: 14px 16px;
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+    }
+    .legend-title { font-size: 11px; font-weight: 700; color: rgba(255,255,255,0.4); text-transform: uppercase; letter-spacing: .08em; }
+    .legend-hint { font-size: 12px; color: rgba(255,255,255,0.6); display: flex; align-items: center; gap: 8px; }
+    .legend-hint::before { content: '→'; color: var(--green-l); font-weight: 700; }
+  </style>
+</head>
+<body>
+
+  <!-- TOP BAR -->
+  <div class="top-bar">
+    <div class="top-bar-logo">
+      <svg width="22" height="22" viewBox="0 0 28 28" fill="none">
+        <path d="M14 3 L24 7 L24 14 C24 19.5 19.5 24 14 25.5 C8.5 24 4 19.5 4 14 L4 7 Z" stroke="currentColor" stroke-width="2" fill="rgba(61,179,137,0.15)"/>
+        <path d="M10 14 L13 17 L18 11" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/>
+      </svg>
+      VidaSegura
+    </div>
+    <span class="proto-badge">Prototipo Funcional</span>
+  </div>
+
+  <!-- FLOW NAV -->
+  <div class="flow-nav" id="flowNav">
+    <div class="flow-step active" data-screen="0" onclick="goTo(0)"><span class="flow-step-num">1</span>Splash</div>
+    <div class="flow-step" data-screen="1" onclick="goTo(1)"><span class="flow-step-num">2</span>Login</div>
+    <div class="flow-step" data-screen="2" onclick="goTo(2)"><span class="flow-step-num">3</span>Dashboard</div>
+    <div class="flow-step" data-screen="3" onclick="goTo(3)"><span class="flow-step-num">4</span>SOS Alerta</div>
+    <div class="flow-step" data-screen="4" onclick="goTo(4)"><span class="flow-step-num">5</span>Enviado</div>
+    <div class="flow-step" data-screen="5" onclick="goTo(5)"><span class="flow-step-num">6</span>GPS</div>
+    <div class="flow-step" data-screen="6" onclick="goTo(6)"><span class="flow-step-num">7</span>Contactos</div>
+    <div class="flow-step" data-screen="7" onclick="goTo(7)"><span class="flow-step-num">8</span>Ajustes</div>
+    <div class="flow-step" data-screen="8" onclick="goTo(8)"><span class="flow-step-num">9</span>Zonas</div>
+  </div>
+
+  <!-- PHONE FRAME -->
+  <div class="phone-wrap">
+    <div class="phone-frame">
+      <div class="phone-notch-bar">
+        <div class="phone-notch">
+          <div class="notch-speaker"></div>
+          <div class="notch-camera"></div>
+        </div>
+        <span class="phone-time" id="clockEl">9:41</span>
+        <div class="phone-status">
+          <svg width="14" height="12" viewBox="0 0 14 12" fill="currentColor" style="color:#1f1d18">
+            <rect x="0" y="4" width="2" height="8" rx="1" opacity=".3"/>
+            <rect x="3" y="2.5" width="2" height="9.5" rx="1" opacity=".5"/>
+            <rect x="6" y="1" width="2" height="11" rx="1" opacity=".7"/>
+            <rect x="9" y="0" width="2" height="12" rx="1"/>
+          </svg>
+          <svg width="16" height="12" viewBox="0 0 16 12" fill="none" stroke="currentColor" stroke-width="1.5" style="color:#1f1d18">
+            <path d="M1 4C3.5 1.5 6.5 0 8 0s4.5 1.5 7 4" opacity=".3"/>
+            <path d="M3 6.5C5 4.5 6.5 3.5 8 3.5s3 1 5 3" opacity=".6"/>
+            <path d="M5.5 9C6.5 8 7.2 7.5 8 7.5s1.5.5 2.5 1.5"/>
+            <circle cx="8" cy="11" r="1" fill="currentColor" stroke="none"/>
+          </svg>
+          <svg width="26" height="13" viewBox="0 0 26 13" fill="none" style="color:#1f1d18">
+            <rect x=".5" y=".5" width="22" height="12" rx="3.5" stroke="currentColor" stroke-opacity=".35"/>
+            <rect x="2" y="2" width="17" height="9" rx="2" fill="currentColor"/>
+            <path d="M24 4.5v4c1.1-.5 1.1-3.5 0-4z" fill="currentColor" opacity=".4"/>
+          </svg>
+        </div>
+      </div>
+
+      <div class="phone-screen" id="phoneScreen">
+
+        <!-- ===== SCREEN 1: SPLASH ===== -->
+        <div class="screen active" id="s-splash">
+          <div class="splash-logo">
+            <svg width="44" height="44" viewBox="0 0 28 28" fill="none" stroke="white" stroke-width="2">
+              <path d="M14 3 L24 7 L24 14 C24 19.5 19.5 24 14 25.5 C8.5 24 4 19.5 4 14 L4 7 Z" fill="rgba(255,255,255,0.1)"/>
+              <path d="M10 14 L13 17 L18 11" stroke-linecap="round" stroke-linejoin="round"/>
+            </svg>
+          </div>
+          <div class="splash-title">VidaSegura</div>
+          <div class="splash-sub">Teleasistencia móvil para mayores</div>
+          <div class="splash-loader"><div class="splash-loader-bar"></div></div>
+        </div>
+
+        <!-- ===== SCREEN 2: LOGIN ===== -->
+        <div class="screen" id="s-login">
+          <div class="login-hero">
+            <div class="login-hero-logo">
+              <svg width="30" height="30" viewBox="0 0 28 28" fill="none" stroke="white" stroke-width="2">
+                <path d="M14 3 L24 7 L24 14 C24 19.5 19.5 24 14 25.5 C8.5 24 4 19.5 4 14 L4 7 Z" fill="rgba(255,255,255,0.15)"/>
+                <path d="M10 14 L13 17 L18 11" stroke-linecap="round" stroke-linejoin="round"/>
+              </svg>
+            </div>
+            <div class="login-hero-title">VidaSegura</div>
+            <div class="login-hero-sub">Inicia sesión para continuar</div>
+          </div>
+          <div class="login-body">
+            <div>
+              <div class="form-label">Correo electrónico</div>
+              <input class="form-input" type="email" placeholder="usuario@email.es" value="maria.garcia@gmail.com" />
+            </div>
+            <div>
+              <div class="form-label">Contraseña</div>
+              <input class="form-input" type="password" placeholder="••••••••" value="••••••••" />
+            </div>
+            <div style="text-align:right; margin-top:-8px;">
+              <span style="font-size:13px;color:var(--green);font-weight:600;cursor:pointer;">¿Olvidaste tu contraseña?</span>
+            </div>
+            <button class="btn-green" onclick="goTo(2)">Entrar</button>
+            <div class="form-link">¿No tienes cuenta? <span>Regístrate gratis</span></div>
+          </div>
+        </div>
+
+        <!-- ===== SCREEN 3: DASHBOARD ===== -->
+        <div class="screen" id="s-dash">
+          <div class="status-bar">
+            <span id="clockDash">9:41</span>
+            <div class="status-icons">
+              <svg width="12" height="10" viewBox="0 0 14 12" fill="currentColor"><rect x="0" y="4" width="2" height="8" rx="1" opacity=".3"/><rect x="3" y="2.5" width="2" height="9.5" rx="1" opacity=".5"/><rect x="6" y="1" width="2" height="11" rx="1" opacity=".7"/><rect x="9" y="0" width="2" height="12" rx="1"/></svg>
+              <svg width="14" height="10" viewBox="0 0 26 13" fill="none"><rect x=".5" y=".5" width="22" height="12" rx="3.5" stroke="currentColor" stroke-opacity=".35"/><rect x="2" y="2" width="17" height="9" rx="2" fill="currentColor"/><path d="M24 4.5v4c1.1-.5 1.1-3.5 0-4z" fill="currentColor" opacity=".4"/></svg>
+            </div>
+          </div>
+          <div class="app-bar">
+            <div>
+              <div class="dash-greeting-sub">Buenos días</div>
+              <div class="dash-greeting-name">María García</div>
+            </div>
+            <div class="icon-btn">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg>
+            </div>
+          </div>
+
+          <div class="dash-scroll">
+            <!-- SOS BUTTON -->
+            <div class="sos-area">
+              <div class="sos-ring" onclick="goTo(3)">
+                <div class="sos-btn-inner">
+                  <span class="sos-btn-label">SOS</span>
+                  <span class="sos-btn-sub">Emergencia</span>
+                </div>
+              </div>
+              <div class="sos-hint">Mantén pulsado 2 segundos para activar</div>
+            </div>
+
+            <!-- STATUS CARDS -->
+            <div class="cards-row">
+              <div class="status-card">
+                <div class="sc-label">GPS</div>
+                <div class="sc-value green">Activo</div>
+                <div class="sc-badge"><span class="sc-dot"></span>En vivo</div>
+              </div>
+              <div class="status-card">
+                <div class="sc-label">Alertas hoy</div>
+                <div class="sc-value" style="font-size:28px;font-weight:800;">0</div>
+                <div style="font-size:10px;color:var(--faint);margin-top:4px;">Todo bien</div>
+              </div>
+            </div>
+            <div class="cards-row">
+              <div class="status-card">
+                <div class="sc-label">Ubicación</div>
+                <div class="sc-value" style="font-size:13px;">Calle Mayor, 12</div>
+                <div style="font-size:10px;color:var(--faint);margin-top:3px;">Madrid — hace 1 min</div>
+              </div>
+              <div class="status-card">
+                <div class="sc-label">Batería</div>
+                <div class="sc-value orange">78%</div>
+                <div style="font-size:10px;color:var(--faint);margin-top:3px;">Cargando</div>
+              </div>
+            </div>
+
+            <!-- QUICK ACTIONS -->
+            <div class="section-head">Accesos rápidos</div>
+            <div class="quick-actions">
+              <div class="qa-item" onclick="goTo(5)">
+                <div class="qa-icon green">
+                  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7z"/><circle cx="12" cy="9" r="2.5"/></svg>
+                </div>
+                <div class="qa-label">Ver GPS</div>
+              </div>
+              <div class="qa-item" onclick="goTo(6)">
+                <div class="qa-icon orange">
+                  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
+                </div>
+                <div class="qa-label">Contactos</div>
+              </div>
+              <div class="qa-item" onclick="goTo(8)">
+                <div class="qa-icon blue">
+                  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M12 2C8.13 2 5 5.13 5 9c0 3 1.5 5 3 6.5"/><path d="M20 15c-1.5 1.5-3 2.5-4 3"/></svg>
+                </div>
+                <div class="qa-label">Zonas</div>
+              </div>
+            </div>
+
+            <!-- RECENT ALERTS -->
+            <div class="section-head" style="margin-top:4px;">Actividad reciente</div>
+            <div class="alerts-list" style="margin-bottom:12px;">
+              <div class="alert-item">
+                <div class="alert-dot green"></div>
+                <div class="alert-text">
+                  <div class="alert-title">GPS activo — zona segura</div>
+                  <div class="alert-time">Hoy, 9:38 — Calle Mayor, 12</div>
+                </div>
+              </div>
+              <div class="alert-item">
+                <div class="alert-dot orange"></div>
+                <div class="alert-text">
+                  <div class="alert-title">Batería por debajo del 80%</div>
+                  <div class="alert-time">Hoy, 8:15 — Nivel actual: 78%</div>
+                </div>
+              </div>
+              <div class="alert-item">
+                <div class="alert-dot green"></div>
+                <div class="alert-text">
+                  <div class="alert-title">Inicio de sesión detectado</div>
+                  <div class="alert-time">Ayer, 20:04 — App abierta</div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- BOTTOM NAV -->
+          <div class="bottom-nav">
+            <div class="bnav-item active" onclick="goTo(2)">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>
+              Inicio
+            </div>
+            <div class="bnav-item" onclick="goTo(5)">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7z"/><circle cx="12" cy="9" r="2.5"/></svg>
+              GPS
+            </div>
+            <div class="bnav-item" onclick="goTo(6)">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
+              Contactos
+            </div>
+            <div class="bnav-item" onclick="goTo(7)">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="8" r="4"/><path d="M20 21a8 8 0 1 0-16 0"/><path d="M12 12v9m-4-4h8"/></svg>
+              Perfil
+            </div>
+          </div>
+        </div>
+
+        <!-- ===== SCREEN 4: SOS ACTIVADO ===== -->
+        <div class="screen" id="s-sos">
+          <div class="status-bar" style="color:rgba(255,255,255,0.7);">
+            <span>9:41</span>
+            <div class="status-icons" style="color:rgba(255,255,255,0.7);">
+              <svg width="12" height="10" viewBox="0 0 14 12" fill="white"><rect x="0" y="4" width="2" height="8" rx="1" opacity=".5"/><rect x="3" y="2.5" width="2" height="9.5" rx="1" opacity=".7"/><rect x="6" y="1" width="2" height="11" rx="1"/><rect x="9" y="0" width="2" height="12" rx="1"/></svg>
+            </div>
+          </div>
+          <div style="flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:0 24px 32px;">
+            <div class="sos-alert-ring">
+              <div class="sos-alert-inner">
+                <span class="sos-alert-label">SOS</span>
+                <span style="font-size:11px;color:rgba(255,255,255,0.8);">ACTIVO</span>
+              </div>
+            </div>
+            <div class="sos-alert-title">¡Alerta enviada!</div>
+            <div class="sos-alert-sub">Tus contactos de emergencia han sido notificados con tu ubicación GPS en tiempo real.</div>
+            <div class="sos-contacts">
+              <div class="sos-contact-item">
+                <div class="sos-avatar">C</div>
+                <div>
+                  <div class="sos-contact-name">Carlos García</div>
+                  <div class="sos-contact-rel">Hijo</div>
+                </div>
+                <div class="sos-contact-status"><span class="sc-dot" style="background:#4caf50;"></span>Notificado</div>
+              </div>
+              <div class="sos-contact-item">
+                <div class="sos-avatar" style="background:rgba(255,255,255,0.1);">A</div>
+                <div>
+                  <div class="sos-contact-name">Ana López</div>
+                  <div class="sos-contact-rel">Cuidadora</div>
+                </div>
+                <div class="sos-contact-status"><span class="sc-dot" style="background:#4caf50;"></span>Notificado</div>
+              </div>
+              <div class="sos-contact-item">
+                <div class="sos-avatar" style="background:rgba(255,255,255,0.1);">🚨</div>
+                <div>
+                  <div class="sos-contact-name">Emergencias 112</div>
+                  <div class="sos-contact-rel">Servicio de emergencias</div>
+                </div>
+                <div class="sos-contact-status" style="color:#ff9800;"><span class="sc-dot" style="background:#ff9800;"></span>Conectando</div>
+              </div>
+            </div>
+            <button class="btn-cancel" onclick="goTo(4)">Ver confirmación →</button>
+          </div>
+        </div>
+
+        <!-- ===== SCREEN 5: ALERTA ENVIADA OK ===== -->
+        <div class="screen" id="s-sent">
+          <div class="status-bar">
+            <span>9:42</span>
+          </div>
+          <div class="sent-check">
+            <svg width="44" height="44" viewBox="0 0 24 24" fill="none" stroke="#1a7a5e" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
+          </div>
+          <div class="sent-title">Alerta enviada</div>
+          <div class="sent-sub">Tus contactos han recibido la alerta y tu ubicación GPS en tiempo real. El servicio de emergencias 112 ha sido contactado.</div>
+          <div class="sent-card" style="width:100%">
+            <div class="sent-card-row">
+              <div class="sent-card-icon green">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+              </div>
+              <div class="sent-card-label">Hora de alerta</div>
+              <div class="sent-card-val">09:41:23</div>
+            </div>
+            <div class="sent-card-row">
+              <div class="sent-card-icon green">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7z"/><circle cx="12" cy="9" r="2.5"/></svg>
+              </div>
+              <div class="sent-card-label">Ubicación</div>
+              <div class="sent-card-val">Calle Mayor, 12</div>
+            </div>
+            <div class="sent-card-row">
+              <div class="sent-card-icon orange">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/></svg>
+              </div>
+              <div class="sent-card-label">Contactos alertados</div>
+              <div class="sent-card-val">3 de 3</div>
+            </div>
+          </div>
+          <button class="btn-green" onclick="goTo(2)" style="width:100%;">Volver al inicio</button>
+          <button class="btn-green-outline" onclick="goTo(5)">Ver GPS en tiempo real</button>
+        </div>
+
+        <!-- ===== SCREEN 6: GPS ===== -->
+        <div class="screen" id="s-gps">
+          <div class="status-bar">
+            <span id="clockGps">9:41</span>
+            <div class="status-icons"></div>
+          </div>
+          <div class="app-bar">
+            <div class="icon-btn" onclick="goTo(2)" style="cursor:pointer;">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="15 18 9 12 15 6"/></svg>
+            </div>
+            <div class="app-bar-title">Ubicación GPS</div>
+            <div class="icon-btn">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+            </div>
+          </div>
+
+          <!-- Map -->
+          <div class="map-area">
+            <div class="map-grid"></div>
+            <!-- Roads -->
+            <div class="map-road-h" style="top:45%;"></div>
+            <div class="map-road-h" style="top:65%;"></div>
+            <div class="map-road-v" style="left:40%;"></div>
+            <div class="map-road-v" style="left:65%;"></div>
+            <!-- Blocks -->
+            <div class="map-block" style="top:20%;left:10%;width:26%;height:22%;"></div>
+            <div class="map-block" style="top:20%;left:45%;width:18%;height:18%;"></div>
+            <div class="map-block" style="top:20%;left:68%;width:22%;height:22%;"></div>
+            <div class="map-block" style="top:50%;left:10%;width:26%;height:12%;"></div>
+            <div class="map-block" style="top:68%;left:10%;width:26%;height:22%;"></div>
+            <div class="map-block" style="top:68%;left:45%;width:18%;height:22%;"></div>
+            <div class="map-block" style="top:68%;left:68%;width:22%;height:22%;"></div>
+            <!-- Safe zone -->
+            <div style="position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);width:140px;height:140px;border-radius:50%;background:rgba(26,122,94,0.1);border:2px dashed rgba(26,122,94,0.5);"></div>
+            <!-- Accuracy -->
+            <div class="map-accuracy" style="top:47%;left:49%;"></div>
+            <!-- Pin -->
+            <div class="map-pin" style="top:47%;left:49%;">
+              <div class="map-pin-circle">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="white"><path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7z"/></svg>
+              </div>
+              <div class="map-pin-tail"></div>
+            </div>
+          </div>
+
+          <!-- Bottom card -->
+          <div class="gps-bottom-card">
+            <div class="gps-handle"></div>
+            <div class="gps-address">Calle Mayor, 12</div>
+            <div class="gps-coords">40.4168° N, 3.7038° W · Madrid, España</div>
+            <div class="gps-stats">
+              <div class="gps-stat"><div class="gps-stat-val">12 m</div><div class="gps-stat-lbl">Precisión</div></div>
+              <div class="gps-stat"><div class="gps-stat-val">1 min</div><div class="gps-stat-lbl">Actualiz.</div></div>
+              <div class="gps-stat"><div class="gps-stat-val">78%</div><div class="gps-stat-lbl">Batería</div></div>
+            </div>
+            <div class="zona-badge">
+              <span class="sc-dot" style="background:var(--green);"></span>
+              Dentro de zona segura — Domicilio
+            </div>
+          </div>
+        </div>
+
+        <!-- ===== SCREEN 7: CONTACTOS ===== -->
+        <div class="screen" id="s-contacts">
+          <div class="status-bar"><span>9:41</span></div>
+          <div class="app-bar">
+            <div class="icon-btn" onclick="goTo(2)"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="15 18 9 12 15 6"/></svg></div>
+            <div class="app-bar-title">Contactos</div>
+            <div class="icon-btn"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg></div>
+          </div>
+          <div class="contacts-list">
+            <div style="font-size:11px;color:var(--faint);text-transform:uppercase;letter-spacing:.08em;padding:4px 0 2px;">Contactos de emergencia</div>
+            <div class="contact-card">
+              <div class="contact-avatar" style="background:#e53935;">C</div>
+              <div style="flex:1;">
+                <div class="contact-name">Carlos García</div>
+                <div class="contact-rel">Hijo · Contacto principal</div>
+                <div class="contact-phone">+34 612 345 678</div>
+                <div class="contact-priority-badge p1">Prioridad 1</div>
+              </div>
+              <div class="contact-actions">
+                <div class="contact-action-btn green">
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07A19.5 19.5 0 0 1 4.69 13 19.79 19.79 0 0 1 1.61 4.4 2 2 0 0 1 3.6 2.2h3a2 2 0 0 1 2 1.72c.127.96.361 1.903.7 2.81a2 2 0 0 1-.45 2.11L7.91 9.91a16 16 0 0 0 6.16 6.16l.95-.95a2 2 0 0 1 2.11-.45c.907.339 1.85.573 2.81.7A2 2 0 0 1 22 16.92z"/></svg>
+                </div>
+              </div>
+            </div>
+            <div class="contact-card">
+              <div class="contact-avatar" style="background:#1a73e8;">A</div>
+              <div style="flex:1;">
+                <div class="contact-name">Ana López</div>
+                <div class="contact-rel">Cuidadora</div>
+                <div class="contact-phone">+34 623 456 789</div>
+                <div class="contact-priority-badge p2">Prioridad 2</div>
+              </div>
+              <div class="contact-actions">
+                <div class="contact-action-btn green">
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07A19.5 19.5 0 0 1 4.69 13 19.79 19.79 0 0 1 1.61 4.4 2 2 0 0 1 3.6 2.2h3a2 2 0 0 1 2 1.72c.127.96.361 1.903.7 2.81a2 2 0 0 1-.45 2.11L7.91 9.91a16 16 0 0 0 6.16 6.16l.95-.95a2 2 0 0 1 2.11-.45c.907.339 1.85.573 2.81.7A2 2 0 0 1 22 16.92z"/></svg>
+                </div>
+              </div>
+            </div>
+            <div class="contact-card">
+              <div class="contact-avatar" style="background:#e8773a;">P</div>
+              <div style="flex:1;">
+                <div class="contact-name">Pedro García</div>
+                <div class="contact-rel">Nieto</div>
+                <div class="contact-phone">+34 634 567 890</div>
+                <div class="contact-priority-badge p3">Prioridad 3</div>
+              </div>
+              <div class="contact-actions">
+                <div class="contact-action-btn green">
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07A19.5 19.5 0 0 1 4.69 13 19.79 19.79 0 0 1 1.61 4.4 2 2 0 0 1 3.6 2.2h3a2 2 0 0 1 2 1.72c.127.96.361 1.903.7 2.81a2 2 0 0 1-.45 2.11L7.91 9.91a16 16 0 0 0 6.16 6.16l.95-.95a2 2 0 0 1 2.11-.45c.907.339 1.85.573 2.81.7A2 2 0 0 1 22 16.92z"/></svg>
+                </div>
+              </div>
+            </div>
+            <div style="font-size:11px;color:var(--faint);text-transform:uppercase;letter-spacing:.08em;padding:8px 0 2px;">Servicios de emergencia</div>
+            <div class="contact-card">
+              <div class="contact-avatar" style="background:#e53935;font-size:20px;">🚨</div>
+              <div style="flex:1;">
+                <div class="contact-name">Emergencias 112</div>
+                <div class="contact-rel">Servicio público</div>
+                <div class="contact-phone">112 — Gratuito 24/7</div>
+              </div>
+            </div>
+            <button class="add-contact-btn">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+              Añadir contacto
+            </button>
+          </div>
+          <div class="bottom-nav">
+            <div class="bnav-item" onclick="goTo(2)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>Inicio</div>
+            <div class="bnav-item" onclick="goTo(5)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7z"/><circle cx="12" cy="9" r="2.5"/></svg>GPS</div>
+            <div class="bnav-item active" onclick="goTo(6)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>Contactos</div>
+            <div class="bnav-item" onclick="goTo(7)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="8" r="4"/><path d="M20 21a8 8 0 1 0-16 0"/></svg>Perfil</div>
+          </div>
+        </div>
+
+        <!-- ===== SCREEN 8: AJUSTES ===== -->
+        <div class="screen" id="s-settings">
+          <div class="status-bar"><span>9:41</span></div>
+          <div class="app-bar">
+            <div class="app-bar-title">Mi perfil</div>
+            <div class="icon-btn"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg></div>
+          </div>
+          <div class="settings-scroll">
+            <div class="settings-profile">
+              <div class="profile-avatar">M</div>
+              <div>
+                <div class="profile-name">María García</div>
+                <div class="profile-email">maria.garcia@gmail.com</div>
+              </div>
+              <div class="icon-btn" style="margin-left:auto;"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="9 18 15 12 9 6"/></svg></div>
+            </div>
+
+            <div class="settings-group">
+              <div class="settings-group-label">Seguridad</div>
+              <div class="settings-item">
+                <div class="si-icon green"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7z"/></svg></div>
+                <div><div class="si-label">GPS en tiempo real</div><div class="si-sub">Actualización cada 60 s</div></div>
+                <div class="si-right"><div class="toggle on" onclick="this.classList.toggle('on')"></div></div>
+              </div>
+              <div class="settings-item" onclick="goTo(8)">
+                <div class="si-icon blue"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M12 2C8.13 2 5 5.13 5 9"/></svg></div>
+                <div><div class="si-label">Zonas seguras</div><div class="si-sub">3 zonas configuradas</div></div>
+                <div class="si-right"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="9 18 15 12 9 6"/></svg></div>
+              </div>
+              <div class="settings-item">
+                <div class="si-icon orange"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg></div>
+                <div><div class="si-label">Notificaciones SOS</div><div class="si-sub">Push + SMS + llamada</div></div>
+                <div class="si-right"><div class="toggle on" onclick="this.classList.toggle('on')"></div></div>
+              </div>
+            </div>
+
+            <div class="settings-group">
+              <div class="settings-group-label">Accesibilidad</div>
+              <div class="settings-item">
+                <div class="si-icon blue"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg></div>
+                <div><div class="si-label">Texto grande</div><div class="si-sub">Aumentar tamaño de letra</div></div>
+                <div class="si-right"><div class="toggle" onclick="this.classList.toggle('on')"></div></div>
+              </div>
+              <div class="settings-item">
+                <div class="si-icon green"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg></div>
+                <div><div class="si-label">Voz asistida</div><div class="si-sub">Lectura de alertas en voz alta</div></div>
+                <div class="si-right"><div class="toggle on" onclick="this.classList.toggle('on')"></div></div>
+              </div>
+            </div>
+
+            <div class="settings-group">
+              <div class="settings-group-label">Cuenta</div>
+              <div class="settings-item">
+                <div class="si-icon red"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg></div>
+                <div><div class="si-label" style="color:var(--red);">Cerrar sesión</div></div>
+                <div class="si-right"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="9 18 15 12 9 6"/></svg></div>
+              </div>
+            </div>
+          </div>
+          <div class="bottom-nav">
+            <div class="bnav-item" onclick="goTo(2)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>Inicio</div>
+            <div class="bnav-item" onclick="goTo(5)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7z"/><circle cx="12" cy="9" r="2.5"/></svg>GPS</div>
+            <div class="bnav-item" onclick="goTo(6)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>Contactos</div>
+            <div class="bnav-item active" onclick="goTo(7)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="8" r="4"/><path d="M20 21a8 8 0 1 0-16 0"/></svg>Perfil</div>
+          </div>
+        </div>
+
+        <!-- ===== SCREEN 9: ZONAS SEGURAS ===== -->
+        <div class="screen" id="s-zones">
+          <div class="status-bar"><span>9:41</span></div>
+          <div class="app-bar">
+            <div class="icon-btn" onclick="goTo(7)"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="15 18 9 12 15 6"/></svg></div>
+            <div class="app-bar-title">Zonas seguras</div>
+            <div class="icon-btn"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg></div>
+          </div>
+
+          <div class="zones-map">
+            <div class="map-grid"></div>
+            <div class="map-road-h" style="top:50%;"></div>
+            <div class="map-road-v" style="left:50%;"></div>
+            <div class="map-block" style="top:15%;left:10%;width:30%;height:28%;"></div>
+            <div class="map-block" style="top:15%;left:55%;width:35%;height:28%;"></div>
+            <div class="map-block" style="top:56%;left:10%;width:30%;height:30%;"></div>
+            <div class="map-block" style="top:56%;left:55%;width:35%;height:30%;"></div>
+            <!-- Zona 1: Domicilio -->
+            <div class="zone-circle" style="top:50%;left:50%;transform:translate(-50%,-50%);width:130px;height:130px;border-color:var(--green);background:rgba(26,122,94,0.12);">
+              <div class="zone-label-pill" style="color:var(--green);">🏠 Domicilio</div>
+            </div>
+            <!-- Zona 2: Médico -->
+            <div class="zone-circle" style="top:22%;left:60%;transform:translate(-50%,-50%);width:80px;height:80px;border-color:#1a73e8;background:rgba(26,115,232,0.1);">
+              <div class="zone-label-pill" style="color:#1a73e8;font-size:9px;">🏥 Médico</div>
+            </div>
+            <!-- Zona 3: Parque -->
+            <div class="zone-circle" style="top:72%;left:30%;transform:translate(-50%,-50%);width:90px;height:90px;border-color:var(--orange);background:rgba(232,119,58,0.1);">
+              <div class="zone-label-pill" style="color:var(--orange);font-size:9px;">🌳 Parque</div>
+            </div>
+            <!-- Pin usuario (dentro zona domicilio) -->
+            <div class="map-pin" style="top:48%;left:50%;">
+              <div class="map-pin-circle" style="width:34px;height:34px;">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="white"><circle cx="12" cy="10" r="4"/><path d="M12 14c-4 0-7 2-7 4v2h14v-2c0-2-3-4-7-4z"/></svg>
+              </div>
+              <div class="map-pin-tail"></div>
+            </div>
+          </div>
+
+          <div class="zones-bottom">
+            <div class="gps-handle"></div>
+            <div class="zone-card">
+              <div class="zone-dot" style="background:var(--green);"></div>
+              <div><div class="zone-name">Domicilio</div><div class="zone-radius">Radio: 200 m</div></div>
+              <div class="zone-status" style="color:var(--green);">Activa</div>
+            </div>
+            <div class="zone-card">
+              <div class="zone-dot" style="background:#1a73e8;"></div>
+              <div><div class="zone-name">Centro de Salud</div><div class="zone-radius">Radio: 150 m</div></div>
+              <div class="zone-status" style="color:#1a73e8;">Activa</div>
+            </div>
+            <div class="zone-card">
+              <div class="zone-dot" style="background:var(--orange);"></div>
+              <div><div class="zone-name">Parque del Retiro</div><div class="zone-radius">Radio: 300 m</div></div>
+              <div class="zone-status" style="color:var(--orange);">Activa</div>
+            </div>
+          </div>
+        </div>
+
+      </div><!-- /phone-screen -->
+    </div><!-- /phone-frame -->
+
+    <!-- LEGEND -->
+    <div class="legend">
+      <div class="legend-title">Cómo navegar</div>
+      <div class="legend-hint" id="hint">Usa las flechas o el menú superior para cambiar pantalla</div>
+    </div>
+  </div><!-- /phone-wrap -->
+
+  <!-- NAV ARROWS -->
+  <div class="nav-arrows">
+    <button class="nav-btn" id="btnPrev" onclick="prev()" disabled>&#8592;</button>
+    <span class="nav-label" id="navLabel">1 / 9 — Splash</span>
+    <button class="nav-btn" id="btnNext" onclick="next()">&#8594;</button>
+  </div>
+
+  <script>
+    const screens = [
+      { id: 's-splash',   label: 'Splash / Carga' },
+      { id: 's-login',    label: 'Inicio de sesión' },
+      { id: 's-dash',     label: 'Dashboard principal' },
+      { id: 's-sos',      label: 'Alerta SOS activa' },
+      { id: 's-sent',     label: 'Alerta enviada ✓' },
+      { id: 's-gps',      label: 'GPS en tiempo real' },
+      { id: 's-contacts', label: 'Contactos emergencia' },
+      { id: 's-settings', label: 'Perfil y ajustes' },
+      { id: 's-zones',    label: 'Zonas seguras' },
+    ];
+
+    const hints = [
+      'Pantalla de carga inicial con animación de progreso',
+      'Pulsa "Entrar" para acceder al dashboard',
+      'Toca el botón SOS rojo para simular una emergencia',
+      'Los contactos son notificados con la ubicación GPS',
+      'Confirmación: alerta enviada con éxito a 3 contactos',
+      'Mapa con ubicación en tiempo real y zona segura activa',
+      'Gestión de contactos de emergencia por prioridad',
+      'Configuración de seguridad, accesibilidad y cuenta',
+      'Define perímetros seguros en el mapa interactivo',
+    ];
+
+    let current = 0;
+    let direction = 1;
+
+    function goTo(idx, dir) {
+      if (idx === current) return;
+      direction = dir !== undefined ? dir : (idx > current ? 1 : -1);
+
+      const prev = document.getElementById(screens[current].id);
+      const next = document.getElementById(screens[idx].id);
+
+      prev.classList.remove('active');
+      next.style.animation = '';
+      next.classList.remove('active');
+      void next.offsetWidth;
+
+      if (direction > 0) {
+        next.style.animation = 'slide-in 0.3s cubic-bezier(0.16,1,0.3,1) both';
+      } else {
+        next.style.animation = 'slide-back 0.3s cubic-bezier(0.16,1,0.3,1) both';
+      }
+      next.classList.add('active');
+      current = idx;
+      updateNav();
+    }
+
+    function next() { if (current < screens.length - 1) goTo(current + 1, 1); }
+    function prev() { if (current > 0) goTo(current - 1, -1); }
+
+    function updateNav() {
+      document.getElementById('btnPrev').disabled = current === 0;
+      document.getElementById('btnNext').disabled = current === screens.length - 1;
+      document.getElementById('navLabel').textContent = `${current + 1} / ${screens.length} — ${screens[current].label}`;
+      document.getElementById('hint').textContent = hints[current];
+
+      document.querySelectorAll('.flow-step').forEach((el, i) => {
+        el.classList.toggle('active', i === current);
+      });
+    }
+
+    // Clock
+    function updateClock() {
+      const now = new Date();
+      const t = now.getHours().toString().padStart(2,'0') + ':' + now.getMinutes().toString().padStart(2,'0');
+      ['clockEl','clockDash','clockGps'].forEach(id => {
+        const el = document.getElementById(id);
+        if (el) el.textContent = t;
+      });
+    }
+    updateClock();
+    setInterval(updateClock, 10000);
+
+    // Auto-advance splash
+    setTimeout(() => { if (current === 0) goTo(1, 1); }, 2500);
+  </script>
+</body>
+</html>
